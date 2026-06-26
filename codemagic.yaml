@@ -1,0 +1,83 @@
+workflows:
+  pocket-exercise-book-android:
+    name: Pocket Exercise Book - Android Release APK
+    max_build_duration: 30
+    instance_type: mac_mini_m2 # free tier minutes (500/month) only apply to this machine type
+    environment:
+      flutter: stable
+    scripts:
+      - name: Scaffold missing Android platform files (gradle, MainActivity, etc.)
+        script: |
+          flutter create --platforms=android --org com.ahmerdee --project-name pocket_exercise_book .
+
+          # url_launcher needs an explicit <queries> declaration on Android 11+
+          # to be allowed to resolve and open https/WhatsApp links at all.
+          python3 - << 'PYEOF'
+          import re
+          path = "android/app/src/main/AndroidManifest.xml"
+          with open(path) as f:
+              content = f.read()
+          queries = '''    <queries>
+              <intent>
+                  <action android:name="android.intent.action.VIEW" />
+                  <data android:scheme="https" />
+              </intent>
+          </queries>
+          '''
+          content = content.replace("</manifest>", queries + "</manifest>")
+          with open(path, "w") as f:
+              f.write(content)
+          PYEOF
+
+          if [ -f android/app/build.gradle.kts ]; then
+          cat >> android/app/build.gradle.kts << 'EOF'
+          android {
+          defaultConfig {
+          minSdk = 23
+          }
+          compileOptions {
+          isCoreLibraryDesugaringEnabled = true
+          sourceCompatibility = JavaVersion.VERSION_17
+          targetCompatibility = JavaVersion.VERSION_17
+          }
+          }
+          dependencies {
+          coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+          }
+          EOF
+          elif [ -f android/app/build.gradle ]; then
+          cat >> android/app/build.gradle << 'EOF'
+          android {
+          defaultConfig {
+          minSdkVersion 23
+          }
+          compileOptions {
+          coreLibraryDesugaringEnabled true
+          sourceCompatibility JavaVersion.VERSION_17
+          targetCompatibility JavaVersion.VERSION_17
+          }
+          }
+          dependencies {
+          coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+          }
+          EOF
+          fi
+
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+
+      - name: Build release APK
+        script: |
+          flutter build apk --release
+
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+
+    publishing:
+      email:
+        recipients:
+          - you@example.com
+        notify:
+          success: true
+          failure: true
