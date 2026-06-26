@@ -26,7 +26,10 @@ class BackupService {
 
     final tempDir = await getTemporaryDirectory();
     final stamp = DateTime.now().millisecondsSinceEpoch;
-    final backupFile = File(p.join(tempDir.path, 'pocket_exercise_book_backup_$stamp.peb'));
+    final backupFile = File(
+      p.join(tempDir.path, 'pocket_exercise_book_backup_$stamp.peb'),
+    );
+
     await dbFile.copy(backupFile.path);
 
     await SharePlus.instance.share(
@@ -41,8 +44,12 @@ class BackupService {
   /// restart the app afterward, since the database connection already
   /// in memory needs to be reopened against the restored file.
   static Future<bool> restoreFromPickedFile() async {
-    final result = await FilePicker.pickFiles(type: FileType.any);
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+    );
+
     if (result == null || result.files.isEmpty) return false;
+
     final pickedPath = result.files.first.path;
     if (pickedPath == null) return false;
 
