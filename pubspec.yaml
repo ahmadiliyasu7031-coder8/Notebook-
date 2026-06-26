@@ -26,7 +26,7 @@ dependencies:
   share_plus: ^12.0.0
 
   # Pick a backup file to restore
-  file_picker: ^8.1.2
+  file_picker: ^10.3.3
 
   # Password hashing for notebook lock
   crypto: ^3.0.3
