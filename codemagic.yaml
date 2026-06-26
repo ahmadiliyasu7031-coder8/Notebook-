@@ -2,74 +2,52 @@ workflows:
   pocket-exercise-book-android:
     name: Pocket Exercise Book - Android Release APK
     max_build_duration: 30
-    instance_type: mac_mini_m2 # free tier minutes (500/month) only apply to this machine type
+    instance_type: mac_mini_m2
+
     environment:
       flutter: stable
+
     scripts:
-      - name: Scaffold missing Android platform files (gradle, MainActivity, etc.)
+      - name: Scaffold missing Android platform files
         script: |
           flutter create --platforms=android --org com.ahmerdee --project-name pocket_exercise_book .
 
-          # url_launcher needs an explicit <queries> declaration on Android 11+
-          # to be allowed to resolve and open https/WhatsApp links at all.
+          # Force Android SDK 36
+          if [ -f android/app/build.gradle.kts ]; then
+            sed -i.bak 's/compileSdk = 34/compileSdk = 36/g' android/app/build.gradle.kts
+            sed -i.bak 's/targetSdk = 34/targetSdk = 36/g' android/app/build.gradle.kts
+          fi
+
+          if [ -f android/app/build.gradle ]; then
+            sed -i.bak 's/compileSdkVersion 34/compileSdkVersion 36/g' android/app/build.gradle
+            sed -i.bak 's/targetSdkVersion 34/targetSdkVersion 36/g' android/app/build.gradle
+          fi
+
           python3 - << 'PYEOF'
-          import re
           path = "android/app/src/main/AndroidManifest.xml"
-          with open(path) as f:
+          with open(path, "r") as f:
               content = f.read()
-          queries = '''    <queries>
-              <intent>
-                  <action android:name="android.intent.action.VIEW" />
-                  <data android:scheme="https" />
-              </intent>
-          </queries>
-          '''
-          content = content.replace("</manifest>", queries + "</manifest>")
+
+          if "<queries>" not in content:
+              queries = """
+              <queries>
+                  <intent>
+                      <action android:name="android.intent.action.VIEW"/>
+                      <data android:scheme="https"/>
+                  </intent>
+              </queries>
+              """
+              content = content.replace("</manifest>", queries + "\n</manifest>")
+
           with open(path, "w") as f:
               f.write(content)
           PYEOF
 
-          if [ -f android/app/build.gradle.kts ]; then
-          cat >> android/app/build.gradle.kts << 'EOF'
-          android {
-          defaultConfig {
-          minSdk = 23
-          }
-          compileOptions {
-          isCoreLibraryDesugaringEnabled = true
-          sourceCompatibility = JavaVersion.VERSION_17
-          targetCompatibility = JavaVersion.VERSION_17
-          }
-          }
-          dependencies {
-          coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-          }
-          EOF
-          elif [ -f android/app/build.gradle ]; then
-          cat >> android/app/build.gradle << 'EOF'
-          android {
-          defaultConfig {
-          minSdkVersion 23
-          }
-          compileOptions {
-          coreLibraryDesugaringEnabled true
-          sourceCompatibility JavaVersion.VERSION_17
-          targetCompatibility JavaVersion.VERSION_17
-          }
-          }
-          dependencies {
-          coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
-          }
-          EOF
-          fi
+      - name: Get packages
+        script: flutter pub get
 
-      - name: Get Flutter packages
-        script: |
-          flutter pub get
-
-      - name: Build release APK
-        script: |
-          flutter build apk --release
+      - name: Build Release APK
+        script: flutter build apk --release
 
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
